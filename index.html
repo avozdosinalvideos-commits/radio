@@ -1,68 +1,111 @@
 <!doctype html>
 <html lang="pt-br">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Upload Rádio</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rádio - A Voz do Sinal</title>
+
+  <meta name="description" content="Player diário - A Voz do Sinal" />
+
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 24px; background: #0b0b0b; color: #fff; }
+    .card { max-width: 520px; margin: 0 auto; background: #141414; border: 1px solid #222; border-radius: 14px; padding: 18px; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    .sub { opacity: .8; margin: 0 0 14px; font-size: 14px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+    button { cursor: pointer; border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 600; }
+    .play { background: #00d26a; }
+    .stop { background: #ff4d4d; }
+    .small { background: #2b2b2b; color: #fff; }
+    .status { font-size: 13px; opacity: .85; margin-top: 10px; }
+    audio { width: 100%; margin-top: 12px; }
+    .hint { font-size: 12px; opacity: .75; margin-top: 10px; line-height: 1.4; }
+    code { background: #1e1e1e; padding: 2px 6px; border-radius: 6px; }
+  </style>
 </head>
-<body style="font-family:Arial;padding:20px;max-width:520px">
-  <h2>Login</h2>
-  <input id="email" placeholder="email" style="width:100%;padding:8px;margin:6px 0"/>
-  <input id="password" type="password" placeholder="senha" style="width:100%;padding:8px;margin:6px 0"/>
-  <button id="btnLogin" style="padding:10px 14px">Entrar</button>
 
-  <hr style="margin:20px 0"/>
+<body>
+  <div class="card">
+    <h1>Rádio — A Voz do Sinal</h1>
+    <p class="sub">Áudio diário (substituído todos os dias às 12h)</p>
 
-  <h2>Enviar áudio do dia</h2>
-  <input id="file" type="file" accept="audio/mpeg,audio/mp3" />
-  <button id="btnUpload" style="padding:10px 14px;margin-left:8px">Upload</button>
+    <div class="row">
+      <button class="play" id="btnPlay">▶ Tocar</button>
+      <button class="stop" id="btnStop">■ Parar</button>
+      <button class="small" id="btnReload">↻ Atualizar áudio</button>
+      <button class="small" id="btnCopy">⧉ Copiar URL do áudio</button>
+    </div>
 
-  <p id="status"></p>
+    <audio id="player" controls preload="none"></audio>
 
-  <p><b>URL do áudio (público):</b></p>
-  <code id="url"></code>
+    <div class="status" id="status">Status: pronto</div>
 
-  <script type="module">
-    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+    <div class="hint">
+      Dica: mantenha o arquivo sempre com o mesmo nome: <code>audio.mp3</code>.
+      Se algum celular “grudar” no cache, use o botão “Atualizar áudio”.
+    </div>
+  </div>
 
-    const SUPABASE_URL = "wmfbmfputerolevrcovb.supabase.co";
-    const SUPABASE_ANON_KEY = "SUA_ANON_KEY";
+  <script>
+    const statusEl = document.getElementById("status");
+    const audio = document.getElementById("player");
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Sempre aponta para o mesmo arquivo
+    const BASE_AUDIO_URL = "./audio.mp3";
 
-    const status = (t) => document.getElementById("status").innerText = t;
+    // Cache-buster (evita o navegador tocar o áudio antigo depois que você substitui)
+    function audioUrlFresh() {
+      return `${BASE_AUDIO_URL}?v=${Date.now()}`;
+    }
 
-    document.getElementById("btnLogin").onclick = async () => {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
+    function setStatus(msg) {
+      statusEl.textContent = `Status: ${msg}`;
+    }
 
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      status(error ? ("Erro: " + error.message) : "Logado ✅");
-    };
+    function loadFresh() {
+      audio.src = audioUrlFresh();
+      audio.load();
+      setStatus("áudio atualizado");
+    }
 
-    document.getElementById("btnUpload").onclick = async () => {
-      const fileInput = document.getElementById("file");
-      const file = fileInput.files?.[0];
-      if (!file) return status("Selecione um MP3.");
+    document.getElementById("btnPlay").addEventListener("click", async () => {
+      if (!audio.src) loadFresh();
+      try {
+        await audio.play();
+        setStatus("tocando");
+      } catch (e) {
+        setStatus("toque bloqueado — clique no player para iniciar");
+      }
+    });
 
-      status("Enviando...");
+    document.getElementById("btnStop").addEventListener("click", () => {
+      audio.pause();
+      audio.currentTime = 0;
+      setStatus("parado");
+    });
 
-      // sempre sobrescreve o mesmo arquivo
-      const { error } = await supabase.storage
-        .from("radio")
-        .upload("audio.mp3", file, { upsert: true, contentType: file.type });
+    document.getElementById("btnReload").addEventListener("click", () => {
+      const wasPlaying = !audio.paused;
+      loadFresh();
+      if (wasPlaying) audio.play().catch(()=>{});
+    });
 
-      if (error) return status("Erro upload: " + error.message);
+    document.getElementById("btnCopy").addEventListener("click", async () => {
+      // URL absoluta do áudio (como o app consumiria)
+      const absoluteAudioUrl = new URL("audio.mp3", window.location.href).toString();
+      try {
+        await navigator.clipboard.writeText(absoluteAudioUrl);
+        setStatus("URL do áudio copiada");
+      } catch {
+        setStatus("não consegui copiar — copie manualmente do endereço");
+      }
+    });
 
-      // URL pública fixa (se o bucket for público)
-      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/radio/audio.mp3`;
+    // Carrega já com cache-buster (sem autoplay, por política dos browsers)
+    loadFresh();
 
-      // cache buster opcional
-      const finalUrl = publicUrl + `?v=${Date.now()}`;
-
-      document.getElementById("url").innerText = publicUrl;
-      status("Upload concluído ✅ (pode tocar no app)");
-    };
+    audio.addEventListener("ended", () => setStatus("finalizado"));
+    audio.addEventListener("pause", () => setStatus("pausado"));
   </script>
 </body>
 </html>
