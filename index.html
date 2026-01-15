@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rádio - A Voz do Sinal</title>
+
+  <meta name="description" content="Player diário - A Voz do Sinal" />
+
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; padding: 24px; background: #0b0b0b; color: #fff; }
+    .card { max-width: 520px; margin: 0 auto; background: #141414; border: 1px solid #222; border-radius: 14px; padding: 18px; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    .sub { opacity: .8; margin: 0 0 14px; font-size: 14px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+    button { cursor: pointer; border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 600; }
+    .play { background: #00d26a; }
+    .stop { background: #ff4d4d; }
+    .small { background: #2b2b2b; color: #fff; }
+    .status { font-size: 13px; opacity: .85; margin-top: 10px; }
+    audio { width: 100%; margin-top: 12px; }
+    .hint { font-size: 12px; opacity: .75; margin-top: 10px; line-height: 1.4; }
+    code { background: #1e1e1e; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>Rádio — A Voz do Sinal</h1>
+    <p class="sub">Áudio diário (substituído todos os dias às 12h)</p>
+
+    <div class="row">
+      <button class="play" id="btnPlay">▶ Tocar</button>
+      <button class="stop" id="btnStop">■ Parar</button>
+      <button class="small" id="btnReload">↻ Atualizar áudio</button>
+      <button class="small" id="btnCopy">⧉ Copiar URL do áudio</button>
+    </div>
+
+    <audio id="player" controls preload="none"></audio>
+
+    <div class="status" id="status">Status: pronto</div>
+
+    <div class="hint">
+      Dica: mantenha o arquivo sempre com o mesmo nome: <code>audio.mp3</code>.
+      Se algum celular “grudar” no cache, use o botão “Atualizar áudio”.
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const audio = document.getElementById("player");
+
+    // Sempre aponta para o mesmo arquivo
+    const BASE_AUDIO_URL = "./audio.mp3";
+
+    // Cache-buster (evita o navegador tocar o áudio antigo depois que você substitui)
+    function audioUrlFresh() {
+      return `${BASE_AUDIO_URL}?v=${Date.now()}`;
+    }
+
+    function setStatus(msg) {
+      statusEl.textContent = `Status: ${msg}`;
+    }
+
+    function loadFresh() {
+      audio.src = audioUrlFresh();
+      audio.load();
+      setStatus("áudio atualizado");
+    }
+
+    document.getElementById("btnPlay").addEventListener("click", async () => {
+      if (!audio.src) loadFresh();
+      try {
+        await audio.play();
+        setStatus("tocando");
+      } catch (e) {
+        setStatus("toque bloqueado — clique no player para iniciar");
+      }
+    });
+
+    document.getElementById("btnStop").addEventListener("click", () => {
+      audio.pause();
+      audio.currentTime = 0;
+      setStatus("parado");
+    });
+
+    document.getElementById("btnReload").addEventListener("click", () => {
+      const wasPlaying = !audio.paused;
+      loadFresh();
+      if (wasPlaying) audio.play().catch(()=>{});
+    });
+
+    document.getElementById("btnCopy").addEventListener("click", async () => {
+      // URL absoluta do áudio (como o app consumiria)
+      const absoluteAudioUrl = new URL("audio.mp3", window.location.href).toString();
+      try {
+        await navigator.clipboard.writeText(absoluteAudioUrl);
+        setStatus("URL do áudio copiada");
+      } catch {
+        setStatus("não consegui copiar — copie manualmente do endereço");
+      }
+    });
+
+    // Carrega já com cache-buster (sem autoplay, por política dos browsers)
+    loadFresh();
+
+    audio.addEventListener("ended", () => setStatus("finalizado"));
+    audio.addEventListener("pause", () => setStatus("pausado"));
+  </script>
+</body>
+</html>
